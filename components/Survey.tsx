@@ -12,7 +12,7 @@ const LS_KEY = "fhs_state_v2";
 interface Timeline { qid: string; atMs: number; pos?: number | number[]; }
 
 // One screen per question, except the three demographics share the first screen.
-const DEMO = ["age", "city", "gender"];
+const DEMO = ["age", "city", "gender", "relation"];
 const SCREENS: string[][] = [DEMO, ...ALL_QIDS.filter((id) => !DEMO.includes(id)).map((id) => [id])];
 const ATTN_INDEX = SCREENS.findIndex((s) => s.includes("attn"));
 

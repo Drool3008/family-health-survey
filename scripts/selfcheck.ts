@@ -36,6 +36,12 @@ assert(!!attn.noProgress, "attention check hides progress");
 // Peak questions hide progress.
 ["Q10", "Q11", "Q12"].forEach((id) => assert(!!QBYID[id].noProgress, `${id} hides progress (no pressure)`));
 
+// Relationship question captured in About you.
+const rel = QBYID["relation"];
+assert(!!rel && rel.type === "single" && !rel.optional, "relation is a required single-choice");
+["Father", "Mother", "Son", "Daughter"].forEach((r) =>
+  assert(!!rel.options?.some((o) => o.id === r), `relation offers ${r}`));
+
 // Free text optional, others required.
 assert(!!QBYID["worst_text"].optional, "worst_text is optional");
 assert(!QBYID["Q1"].optional && !QBYID["followup"].optional, "Q1 and follow-up are required");

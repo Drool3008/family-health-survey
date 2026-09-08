@@ -49,6 +49,15 @@ export const QUESTIONS: Question[] = [
     id: "gender", type: "single", prompt: "Your gender",
     options: ["Female", "Male", "Prefer not to say"].map((l) => O(l)),
   },
+  {
+    id: "relation", type: "single", prompt: "Your place in the family",
+    help: "So we can compare answers across the family. Everyone still answers the same questions.",
+    options: [
+      O("Father"), O("Mother"), O("Son"), O("Daughter"), O("Husband"), O("Wife"),
+      O("Daughter-in-law or Son-in-law"), O("Brother"), O("Sister"), O("Grandparent"),
+      O("Other relative"),
+    ],
+  },
 
   // ---- The 22 questions ----
   {
