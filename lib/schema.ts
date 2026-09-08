@@ -80,15 +80,8 @@ const INDIAN_CITIES = [
 // ---------------------------------------------------------------------------
 export const QUESTIONS: Question[] = [
   // ===================== SECTION 0 — CONSENT AND ROUTING ====================
-  {
-    id: "Q0.1", section: 0, roles: ["A", "B", "C", "D"], type: "single",
-    prompt: "Family code",
-    help: "Given to you along with this link.",
-    options: [
-      { id: "F1", label: "F1" }, { id: "F2", label: "F2" }, { id: "F3", label: "F3" },
-      { id: "F4", label: "F4" }, { id: "F5", label: "F5" },
-    ],
-  },
+  // Family code is captured up front by the code gate (see components/Survey.tsx),
+  // not as a form question, so respondents can't see or pick the wrong family.
   {
     id: "Q0.2", section: 0, roles: ["A", "B", "C", "D"], type: "single",
     prompt: "Your age",

@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Answers, Role, Question, CONSENT_TEXT, QBYID } from "@/lib/schema";
 import { roleSections, sectionQuestions, visibleQuestions } from "@/lib/visibility";
+import { normalizeCode } from "@/lib/codes";
 import QuestionView from "./QuestionView";
 import Progress from "./Progress";
 
-type Phase = "consent" | "form" | "declined" | "done";
+type Phase = "consent" | "code" | "form" | "declined" | "done";
 const LS_KEY = "fhs_state_v1";
 
 interface Timeline { qid: string; atMs: number; pos?: number | number[]; }
@@ -39,6 +40,9 @@ export default function Survey() {
   const [consentChoice, setConsentChoice] = useState<"agree" | "decline" | "">("");
   const [respondentId, setRespondentId] = useState("");
   const [startedAt, setStartedAt] = useState<number>(0);
+  const [familyCode, setFamilyCode] = useState("");
+  const [codeInput, setCodeInput] = useState("");
+  const [codeError, setCodeError] = useState("");
   const [answers, setAnswers] = useState<Answers>({});
   const [timeline, setTimeline] = useState<Timeline[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
@@ -59,10 +63,12 @@ export default function Survey() {
         setPhase(s.phase ?? "consent");
         setRespondentId(s.respondentId ?? crypto.randomUUID());
         setStartedAt(s.startedAt ?? Date.now());
+        setFamilyCode(s.familyCode ?? "");
+        setCodeInput(s.familyCode ?? "");
         setAnswers(s.answers ?? {});
         setTimeline(s.timeline ?? []);
         setStepIndex(s.stepIndex ?? 0);
-        if (s.phase === "form") setConsentChoice("agree");
+        if (s.phase === "form" || s.phase === "code") setConsentChoice("agree");
       } else {
         setRespondentId(crypto.randomUUID());
         setStartedAt(Date.now());
@@ -76,9 +82,9 @@ export default function Survey() {
 
   useEffect(() => {
     if (!mounted) return;
-    const s = { phase, respondentId, startedAt, answers, timeline, stepIndex };
+    const s = { phase, respondentId, startedAt, familyCode, answers, timeline, stepIndex };
     try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch {}
-  }, [mounted, phase, respondentId, startedAt, answers, timeline, stepIndex]);
+  }, [mounted, phase, respondentId, startedAt, familyCode, answers, timeline, stepIndex]);
 
   const onChange = (qid: string, value: any, pos?: number | number[]) => {
     setAnswers((a) => ({ ...a, [qid]: value }));
@@ -108,11 +114,42 @@ export default function Survey() {
             <button
               className="primary"
               disabled={!consentChoice}
-              onClick={() => setPhase(consentChoice === "agree" ? "form" : "declined")}
+              onClick={() => setPhase(consentChoice === "agree" ? "code" : "declined")}
             >
               Begin
             </button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- family code gate ----
+  if (phase === "code") {
+    const submitCode = () => {
+      const c = normalizeCode(codeInput);
+      if (!c) { setCodeError("That code isn't recognised. Please check the code you were given."); return; }
+      setFamilyCode(c);
+      setCodeError("");
+      setPhase("form");
+    };
+    return (
+      <div className="card">
+        <h2>Do you have a code?</h2>
+        <p className="help">Enter the code you were given. It links your answers to the rest of your family. If you don&apos;t have one, please contact the person who sent you this.</p>
+        <input
+          type="text"
+          value={codeInput}
+          onChange={(e) => { setCodeInput(e.target.value); setCodeError(""); }}
+          onKeyDown={(e) => { if (e.key === "Enter") submitCode(); }}
+          placeholder="e.g. MANGO47"
+          autoCapitalize="characters"
+          aria-label="Family code"
+        />
+        {codeError && <p className="err">{codeError}</p>}
+        <div className="nav">
+          <button onClick={() => setPhase("consent")}>Back</button>
+          <button className="primary" disabled={!codeInput.trim()} onClick={submitCode}>Continue</button>
         </div>
       </div>
     );
@@ -176,7 +213,7 @@ export default function Survey() {
           consent: true,
           respondentId,
           role: effectiveRole,
-          familyCode: answers["Q0.1"] ?? "",
+          familyCode,
           startedAt: new Date(startedAt).toISOString(),
           submittedAt: new Date().toISOString(),
           totalMs: Date.now() - startedAt,
