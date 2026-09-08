@@ -33,7 +33,7 @@ export default function QuestionView({ q, value, answers, respondentId, showErro
       </p>
       {q.help && <p className="help">{q.help}</p>}
 
-      {q.type === "single" && (
+      {q.type === "single" && !q.pipedPerStopped && (
         <SingleView q={q} value={value} respondentId={respondentId} onChange={onChange} />
       )}
 
