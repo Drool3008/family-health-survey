@@ -1,37 +1,26 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Answers, Role, Question, CONSENT_TEXT, QBYID } from "@/lib/schema";
-import { roleSections, sectionQuestions, visibleQuestions } from "@/lib/visibility";
+import { Answers, Question, QUESTIONS, QBYID, ALL_QIDS, CONSENT_TEXT } from "@/lib/schema";
 import { normalizeCode } from "@/lib/codes";
 import QuestionView from "./QuestionView";
 import Progress from "./Progress";
 
 type Phase = "consent" | "code" | "form" | "declined" | "done";
-const LS_KEY = "fhs_state_v1";
+const LS_KEY = "fhs_state_v2";
 
 interface Timeline { qid: string; atMs: number; pos?: number | number[]; }
+
+// One screen per question, except the three demographics share the first screen.
+const DEMO = ["age", "city", "gender"];
+const SCREENS: string[][] = [DEMO, ...ALL_QIDS.filter((id) => !DEMO.includes(id)).map((id) => [id])];
+const ATTN_INDEX = SCREENS.findIndex((s) => s.includes("attn"));
 
 function isAnswered(q: Question, answers: Answers): boolean {
   if (q.optional) return true;
   const v = answers[q.id];
-  switch (q.type) {
-    case "multi":
-      return Array.isArray(v) && v.length > 0;
-    case "matrix": {
-      if (v?.cleared) return true;
-      const rows = q.rows ?? [];
-      const cells = v?.cells ?? {};
-      return rows.length > 0 && rows.every((r) => cells[r.id]);
-    }
-    default:
-      if (q.pipedPerStopped) {
-        const cells = answers["Q10.1"]?.cells ?? {};
-        const stopped = Object.entries(cells).filter(([, c]) => c === "stopped").map(([r]) => r);
-        return stopped.every((rid) => v && v[rid]);
-      }
-      return v !== undefined && v !== null && v !== "";
-  }
+  if (q.type === "multi") return Array.isArray(v) && v.length > 0;
+  return v !== undefined && v !== null && v !== "";
 }
 
 export default function Survey() {
@@ -46,15 +35,13 @@ export default function Survey() {
   const [answers, setAnswers] = useState<Answers>({});
   const [timeline, setTimeline] = useState<Timeline[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
+  const [floor, setFloor] = useState(0); // lowest step you can go back to (attention checkpoint)
   const [showErrors, setShowErrors] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  const role: Role | undefined = (answers["Q0.4"] as Role) || undefined;
-  const sections = useMemo(() => (role ? roleSections(role) : [0]), [role]);
-  const total = role ? sections.length : roleSections("A").length;
+  const total = SCREENS.length;
 
-  // ---- load / persist ----
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_KEY);
@@ -68,6 +55,7 @@ export default function Survey() {
         setAnswers(s.answers ?? {});
         setTimeline(s.timeline ?? []);
         setStepIndex(s.stepIndex ?? 0);
+        setFloor(s.floor ?? 0);
         if (s.phase === "form" || s.phase === "code") setConsentChoice("agree");
       } else {
         setRespondentId(crypto.randomUUID());
@@ -82,49 +70,47 @@ export default function Survey() {
 
   useEffect(() => {
     if (!mounted) return;
-    const s = { phase, respondentId, startedAt, familyCode, answers, timeline, stepIndex };
+    const s = { phase, respondentId, startedAt, familyCode, answers, timeline, stepIndex, floor };
     try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch {}
-  }, [mounted, phase, respondentId, startedAt, familyCode, answers, timeline, stepIndex]);
+  }, [mounted, phase, respondentId, startedAt, familyCode, answers, timeline, stepIndex, floor]);
 
   const onChange = (qid: string, value: any, pos?: number | number[]) => {
     setAnswers((a) => ({ ...a, [qid]: value }));
     setTimeline((t) => [...t.filter((e) => e.qid !== qid), { qid, atMs: Date.now() - startedAt, pos }]);
   };
 
+  const screenQuestions = useMemo(
+    () => (SCREENS[Math.min(stepIndex, SCREENS.length - 1)] ?? []).map((id) => QBYID[id]),
+    [stepIndex]
+  );
+
   if (!mounted) return <div className="center spinner">Loading…</div>;
 
-  // ---- consent ----
   if (phase === "consent") {
     return (
-      <div>
-        <div className="card">
-          <h1>Managing the family&apos;s health</h1>
-          <p className="lead">A short survey. Your answers are confidential.</p>
-          <p className="consent-quote">{CONSENT_TEXT}</p>
-          <label className={"opt" + (consentChoice === "agree" ? " sel" : "")}>
-            <input type="radio" name="consent" checked={consentChoice === "agree"} onChange={() => setConsentChoice("agree")} />
-            <span>I agree</span>
-          </label>
-          <label className={"opt" + (consentChoice === "decline" ? " sel" : "")}>
-            <input type="radio" name="consent" checked={consentChoice === "decline"} onChange={() => setConsentChoice("decline")} />
-            <span>I do not agree</span>
-          </label>
-          <div className="nav">
-            <span />
-            <button
-              className="primary"
-              disabled={!consentChoice}
-              onClick={() => setPhase(consentChoice === "agree" ? "code" : "declined")}
-            >
-              Begin
-            </button>
-          </div>
+      <div className="card">
+        <h1>Managing the family&apos;s health</h1>
+        <p className="lead">A short survey, about 7–9 minutes. Your answers are confidential.</p>
+        <p className="consent-quote">{CONSENT_TEXT}</p>
+        <label className={"opt" + (consentChoice === "agree" ? " sel" : "")}>
+          <input type="radio" name="consent" checked={consentChoice === "agree"} onChange={() => setConsentChoice("agree")} />
+          <span>I agree</span>
+        </label>
+        <label className={"opt" + (consentChoice === "decline" ? " sel" : "")}>
+          <input type="radio" name="consent" checked={consentChoice === "decline"} onChange={() => setConsentChoice("decline")} />
+          <span>I do not agree</span>
+        </label>
+        <div className="nav">
+          <span />
+          <button className="primary" disabled={!consentChoice}
+            onClick={() => setPhase(consentChoice === "agree" ? "code" : "declined")}>
+            Begin
+          </button>
         </div>
       </div>
     );
   }
 
-  // ---- family code gate ----
   if (phase === "code") {
     const submitCode = () => {
       const c = normalizeCode(codeInput);
@@ -137,15 +123,10 @@ export default function Survey() {
       <div className="card">
         <h2>Do you have a code?</h2>
         <p className="help">Enter the code you were given. It links your answers to the rest of your family. If you don&apos;t have one, please contact the person who sent you this.</p>
-        <input
-          type="text"
-          value={codeInput}
+        <input type="text" value={codeInput}
           onChange={(e) => { setCodeInput(e.target.value); setCodeError(""); }}
           onKeyDown={(e) => { if (e.key === "Enter") submitCode(); }}
-          placeholder="e.g. MANGO47"
-          autoCapitalize="characters"
-          aria-label="Family code"
-        />
+          placeholder="e.g. MANGO47" autoCapitalize="characters" aria-label="Family code" />
         {codeError && <p className="err">{codeError}</p>}
         <div className="nav">
           <button onClick={() => setPhase("consent")}>Back</button>
@@ -174,37 +155,38 @@ export default function Survey() {
   }
 
   // ---- form ----
-  const section = sections[Math.min(stepIndex, sections.length - 1)];
-  const effectiveRole: Role = role ?? "A";
-  const qs = sectionQuestions(effectiveRole, answers, section);
-  const isLast = stepIndex >= sections.length - 1;
+  const qs = screenQuestions;
+  const isLast = stepIndex >= SCREENS.length - 1;
+  const hideProgress = qs.some((q) => q.noProgress);
+  const onAttn = stepIndex === ATTN_INDEX;
   const sectionValid = qs.every((q) => isAnswered(q, answers));
 
   const goNext = async () => {
     if (!sectionValid) {
       setShowErrors(true);
       const bad = qs.find((q) => !isAnswered(q, answers));
-      if (bad) {
-        // wait a frame so the error text is in the DOM, then scroll to it
-        requestAnimationFrame(() =>
-          document.getElementById(`q-${bad.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
-        );
-      }
+      if (bad) requestAnimationFrame(() =>
+        document.getElementById(`q-${bad.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
       return;
     }
     setShowErrors(false);
+    // passing the attention check locks back-navigation across it
+    if (onAttn) setFloor(ATTN_INDEX + 1);
     if (!isLast) { setStepIndex((i) => i + 1); window.scrollTo(0, 0); return; }
     await submit();
   };
-  const goBack = () => { setShowErrors(false); setStepIndex((i) => Math.max(0, i - 1)); window.scrollTo(0, 0); };
+
+  const backDisabled = stepIndex === 0 || onAttn || stepIndex <= floor;
+  const goBack = () => {
+    if (backDisabled) return;
+    setShowErrors(false);
+    setStepIndex((i) => Math.max(floor, i - 1));
+    window.scrollTo(0, 0);
+  };
 
   const submit = async () => {
     setSubmitting(true);
     setSubmitError("");
-    // keep only answers this role's form actually shows
-    const keep = new Set(visibleQuestions(effectiveRole, answers).map((q) => q.id));
-    const cleanAnswers: Answers = {};
-    Object.keys(answers).forEach((k) => { if (keep.has(k)) cleanAnswers[k] = answers[k]; });
     try {
       const res = await fetch("/api/submit", {
         method: "POST",
@@ -212,12 +194,12 @@ export default function Survey() {
         body: JSON.stringify({
           consent: true,
           respondentId,
-          role: effectiveRole,
           familyCode,
+          attentionPass: answers["attn"] === QBYID["attn"].attention,
           startedAt: new Date(startedAt).toISOString(),
           submittedAt: new Date().toISOString(),
           totalMs: Date.now() - startedAt,
-          answers: cleanAnswers,
+          answers,
           timeline,
         }),
       });
@@ -233,13 +215,12 @@ export default function Survey() {
 
   return (
     <div>
-      <Progress step={stepIndex + 1} total={total} />
+      {!hideProgress && <Progress step={stepIndex + 1} total={total} />}
       {qs.map((q) => (
         <QuestionView
           key={q.id}
           q={q}
           value={answers[q.id]}
-          answers={answers}
           respondentId={respondentId}
           showError={showErrors && !isAnswered(q, answers)}
           onChange={onChange}
@@ -247,7 +228,7 @@ export default function Survey() {
       ))}
       {submitError && <p className="err">{submitError}</p>}
       <div className="nav">
-        <button onClick={goBack} disabled={stepIndex === 0}>Back</button>
+        {backDisabled ? <span /> : <button onClick={goBack}>Back</button>}
         <button className="primary" onClick={goNext} disabled={submitting}>
           {submitting ? "Submitting…" : isLast ? "Submit" : "Next"}
         </button>
@@ -256,5 +237,4 @@ export default function Survey() {
   );
 }
 
-// referenced for typing only
-void QBYID;
+void QUESTIONS;
