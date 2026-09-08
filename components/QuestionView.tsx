@@ -26,7 +26,7 @@ export default function QuestionView({ q, value, answers, respondentId, showErro
   }
 
   return (
-    <div className="card">
+    <div className="card" id={`q-${q.id}`}>
       <p className="qtitle">
         {prompt}
         {required && <span className="req" aria-hidden>*</span>}

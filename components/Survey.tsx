@@ -144,7 +144,17 @@ export default function Survey() {
   const sectionValid = qs.every((q) => isAnswered(q, answers));
 
   const goNext = async () => {
-    if (!sectionValid) { setShowErrors(true); return; }
+    if (!sectionValid) {
+      setShowErrors(true);
+      const bad = qs.find((q) => !isAnswered(q, answers));
+      if (bad) {
+        // wait a frame so the error text is in the DOM, then scroll to it
+        requestAnimationFrame(() =>
+          document.getElementById(`q-${bad.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+        );
+      }
+      return;
+    }
     setShowErrors(false);
     if (!isLast) { setStepIndex((i) => i + 1); window.scrollTo(0, 0); return; }
     await submit();
