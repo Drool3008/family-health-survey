@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { google } from "googleapis";
-import { QUESTIONS, QBYID, ALL_QIDS, Question } from "@/lib/schema";
+import { QBYID, ALL_QIDS, Question } from "@/lib/schema";
 
 export const runtime = "nodejs";
 
@@ -68,49 +67,20 @@ function toRow(body: any): string[] {
   return [...meta, ...cells, JSON.stringify(body.timeline ?? [])];
 }
 
-function getSheets() {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const key = process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-  if (!email || !key) throw new Error("Missing GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_PRIVATE_KEY");
-  const auth = new google.auth.JWT({
-    email,
-    key,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-  return google.sheets({ version: "v4", auth });
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     if (!body?.consent) return NextResponse.json({ error: "no consent" }, { status: 400 });
 
-    const sheetId = process.env.GOOGLE_SHEET_ID;
-    if (!sheetId) throw new Error("Missing GOOGLE_SHEET_ID");
-    const tab = process.env.GOOGLE_SHEET_TAB || "Responses";
-    const sheets = getSheets();
+    const url = process.env.SHEETS_WEBHOOK_URL;
+    if (!url) throw new Error("Missing SHEETS_WEBHOOK_URL");
 
-    // Ensure the header row exists once.
-    const head = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId,
-      range: `${tab}!A1:A1`,
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ header: HEADER, row: toRow(body) }),
     });
-    if (!head.data.values || head.data.values.length === 0) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: sheetId,
-        range: `${tab}!A1`,
-        valueInputOption: "RAW",
-        requestBody: { values: [HEADER] },
-      });
-    }
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: sheetId,
-      range: `${tab}!A1`,
-      valueInputOption: "RAW",
-      insertDataOption: "INSERT_ROWS",
-      requestBody: { values: [toRow(body)] },
-    });
+    if (!res.ok) throw new Error(`Webhook returned ${res.status}`);
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
@@ -118,6 +88,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e?.message || "submit failed" }, { status: 500 });
   }
 }
-
-// touch imports so tree-shaking keeps them
-void QUESTIONS;
