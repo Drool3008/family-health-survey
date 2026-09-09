@@ -126,7 +126,7 @@ export default function Survey() {
         <input type="text" value={codeInput}
           onChange={(e) => { setCodeInput(e.target.value); setCodeError(""); }}
           onKeyDown={(e) => { if (e.key === "Enter") submitCode(); }}
-          placeholder="e.g. MANGO47" autoCapitalize="characters" aria-label="Family code" />
+          placeholder="Enter your code" autoCapitalize="characters" aria-label="Family code" />
         {codeError && <p className="err">{codeError}</p>}
         <div className="nav">
           <button onClick={() => setPhase("consent")}>Back</button>
