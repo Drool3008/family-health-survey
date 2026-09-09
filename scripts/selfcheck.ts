@@ -19,8 +19,8 @@ QUESTIONS.forEach((q) => {
   }
 });
 
-// SELECT ALL (multi) set.
-const MULTI = new Set(["Q18", "Q19", "Q21"]);
+// SELECT ALL (multi) set — updated per family-health-survey-20 (1).md B.6.
+const MULTI = new Set(["Q7", "Q11", "Q15", "Q18", "Q19", "Q21"]);
 QUESTIONS.forEach((q) => {
   if (q.id.startsWith("Q")) {
     assert((q.type === "multi") === MULTI.has(q.id), `${q.id} multi flag matches spec`);
@@ -31,10 +31,20 @@ QUESTIONS.forEach((q) => {
 const attn = QBYID["attn"];
 assert(!!attn && attn.attention === "Twice", "attention check answer is 'Twice'");
 assert(!!attn.options?.some((o) => o.id === "Twice"), "attention check offers 'Twice'");
-assert(!!attn.noProgress, "attention check hides progress");
 
-// Peak questions hide progress.
-["Q10", "Q11", "Q12"].forEach((id) => assert(!!QBYID[id].noProgress, `${id} hides progress (no pressure)`));
+// Progress must never be hidden now — no question carries a progress-hiding flag.
+assert(QUESTIONS.every((q) => !(q as any).noProgress), "no question hides the progress bar (B.5)");
+
+// Exclusive (clears-the-rest) options on the multi questions that need them.
+["Q11", "Q18", "Q19", "Q21"].forEach((id) =>
+  assert(!!QBYID[id].options?.some((o) => o.exclusive), `${id} has an exclusive clears-others option`));
+
+// Q8/Q9 reword from the Q1 answer, and differ by that answer.
+["Q8", "Q9"].forEach((id) => assert(typeof QBYID[id].promptFor === "function", `${id} has a dynamic promptFor`));
+const p8 = QBYID["Q8"].promptFor!;
+assert(p8({ Q1: "My mother" }).includes("your mother") && p8({ Q1: "I do" }).includes("you"),
+  "Q8 prompt reflects the Q1 answer");
+assert(p8({ Q1: "My mother" }) !== p8({ Q1: "My father" }), "Q8 prompt differs by Q1 selection");
 
 // Relationship question captured in About you.
 const rel = QBYID["relation"];

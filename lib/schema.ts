@@ -8,22 +8,36 @@ export interface Opt {
   id: string;
   label: string;
   pinned?: boolean; // keep last when options are randomized (None / Nobody / I don't know)
+  exclusive?: boolean; // in a SELECT ALL, picking this clears the rest (and vice versa)
 }
 
 export interface Question {
   id: string;
   type: QType;
   prompt: string;
+  promptFor?: (a: Answers) => string; // dynamic prompt (Q8/Q9 reword from the Q1 answer)
   help?: string;
   options?: Opt[];
   randomize?: boolean;
   optional?: boolean;
-  noProgress?: boolean; // hide the progress bar on this question's screen (peak Q10–12, attention check)
   attention?: string; // marks the attention check; value = the correct option id
 }
 
 // plain label -> option (id === label; option ids are only storage keys now)
-const O = (label: string, pinned?: boolean): Opt => ({ id: label, label, pinned });
+const O = (label: string, pinned?: boolean, exclusive?: boolean): Opt => ({ id: label, label, pinned, exclusive });
+
+// Reword Q8/Q9 from the Q1 answer so the respondent doesn't have to recall it.
+function coordinator(a: Answers): { subj: string; obj: string } {
+  switch (a["Q1"]) {
+    case "I do": return { subj: "you", obj: "you" };
+    case "My mother": return { subj: "your mother", obj: "her" };
+    case "My father": return { subj: "your father", obj: "him" };
+    case "My son or daughter": return { subj: "your son or daughter", obj: "them" };
+    case "My brother or sister": return { subj: "your brother or sister", obj: "them" };
+    case "My husband or wife": return { subj: "your husband or wife", obj: "them" };
+    default: return { subj: "the person who usually arranges things", obj: "them" };
+  }
+}
 
 const INDIAN_CITIES = [
   "Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Ahmedabad", "Chennai", "Kolkata",
@@ -116,16 +130,24 @@ export const QUESTIONS: Question[] = [
     ],
   },
   {
-    id: "Q7", type: "single",
-    prompt: "To collect all the reports of one person, how many different places would you have to look?",
+    id: "Q7", type: "multi",
+    prompt: "To collect all the reports of one person, where would you have to look?",
+    help: "Select all that apply.",
     options: [
-      O("One place, everything is together"), O("Two places"), O("Three places"),
-      O("Four or more"), O("I would not be able to collect all of it"),
+      O("One file or folder at home, everything together"),
+      O("Loose papers in a drawer or almirah"),
+      O("Photos in someone's phone"),
+      O("A WhatsApp chat"),
+      O("Email or Google Drive"),
+      O("A hospital's app or website"),
+      O("Only with the doctor or the lab"),
+      O("I would not be able to collect all of it"),
     ],
   },
   {
     id: "Q8", type: "single",
     prompt: "Apart from the person who arranges things, who else could find that report without phoning them?",
+    promptFor: (a) => `Apart from ${coordinator(a).subj}, who else could find that report without phoning ${coordinator(a).obj}?`,
     options: [
       O("Anyone in the family could"), O("One other person could"),
       O("Only the person whose report it is"),
@@ -135,6 +157,7 @@ export const QUESTIONS: Question[] = [
   {
     id: "Q9", type: "single",
     prompt: "If that person could not be reached for one full week, what would happen to the medicines and appointments?",
+    promptFor: (a) => `If ${coordinator(a).subj} could not be reached for one full week, what would happen to the medicines and appointments?`,
     options: [
       O("Someone else would take over easily"),
       O("Someone else would manage, but would have to ask a lot of questions"),
@@ -144,30 +167,35 @@ export const QUESTIONS: Question[] = [
     ],
   },
   {
-    id: "Q10", type: "single", noProgress: true,
-    prompt: "When the oldest person in the family sits with a doctor, who does most of the talking?",
+    id: "Q10", type: "single",
+    prompt: "When the oldest person in your family sees a doctor, who does most of the talking?",
     options: [
-      O("They do"), O("Their son or daughter"), O("Their husband or wife"),
-      O("The doctor talks mainly to whoever came along, not to them"),
-      O("They go alone, so only they talk"),
+      O("The oldest person does"),
+      O("The family member who went along does"),
+      O("Both talk about equally"),
+      O("The doctor speaks mainly to the family member, not to the patient"),
+      O("They go alone, so there is nobody else to talk"),
     ],
   },
   {
-    id: "Q11", type: "single", noProgress: true,
-    prompt: "Has a decision about someone's health been taken without asking that person first?",
+    id: "Q11", type: "multi",
+    prompt: "Has a decision about someone's health ever been taken without asking that person first?",
+    help: "Select all that apply.",
     options: [
-      O("Yes, and that person did not like it"), O("Yes, and that person was fine with it"),
-      O("Yes, and that person prefers it that way"), O("No, the person is always asked"),
-      O("I don't know", true),
+      O("Yes, and that person did not like it"),
+      O("Yes, and that person was fine with it"),
+      O("Yes, and that person prefers it that way"),
+      O("No, the person is always asked", true, true),
+      O("I don't know", true, true),
     ],
   },
   {
-    id: "Q12", type: "single", noProgress: true,
+    id: "Q12", type: "single",
     prompt: "Does anyone in your family keep health problems to themselves instead of telling the others?",
     options: [
       O("Yes, so that the others do not worry"), O("Yes, because the others are busy"),
-      O("Yes, because the others would make too much of it"),
-      O("I think so, but I am not certain"), O("No, everything gets told"),
+      O("Yes, because the others would make it into a big thing"),
+      O("I think so, but I am not sure"), O("No, everyone tells everyone"),
     ],
   },
   {
@@ -192,8 +220,9 @@ export const QUESTIONS: Question[] = [
     ],
   },
   {
-    id: "Q15", type: "single",
-    prompt: "The chemist needs ₹4,000 right now, and the person who arranges things is in a meeting. What happens?",
+    id: "Q15", type: "multi",
+    prompt: "The chemist needs ₹4,000 right now, and the person who arranges things is in a meeting. What could happen?",
+    help: "Select all that apply.",
     options: [
       O("The person at the shop pays it themselves, no problem"),
       O("They pay from cash kept at home"), O("They wait until the meeting is over"),
@@ -202,7 +231,7 @@ export const QUESTIONS: Question[] = [
     ],
   },
   {
-    id: "attn", type: "single", noProgress: true, attention: "Twice",
+    id: "attn", type: "single", attention: "Twice",
     prompt: "This question checks that the page has loaded correctly. Please choose “Twice”.",
     options: [O("Once"), O("Twice"), O("Three times"), O("Not at all")],
   },
@@ -233,18 +262,18 @@ export const QUESTIONS: Question[] = [
     help: "Select all that apply.",
     options: [
       O("WhatsApp messages between family members"), O("WhatsApp directly with a doctor"),
-      O("Phone calls only"), O("A file or folder kept at home"),
+      O("Phone calls"), O("A file or folder kept at home"),
       O("Loose papers in a drawer or almirah"), O("Photos in a phone"),
       O("Google Drive or email"), O("A medicine app — 1mg, PharmEasy, Apollo, Netmeds, Zeno"),
       O("Zepto, Blinkit or Instamart"), O("A hospital's own app"),
       O("ABHA or a government health app"), O("A paid service that looks after elderly parents"),
       O("The local chemist, who knows the family"),
-      O("Nothing — there is no system", true),
+      O("Nothing — there is no system", true, true),
     ],
   },
   {
     id: "Q19", type: "multi", randomize: true,
-    prompt: "Which of these would you be willing to let a phone service do on its own, without asking you each time?",
+    prompt: "Imagine an automatic service on your phone that can do jobs by itself. Which of these would you let it do without asking you each time?",
     help: "Select all that apply.",
     options: [
       O("Phone the clinic, wait on hold, and ring you only when a person picks up"),
@@ -253,47 +282,47 @@ export const QUESTIONS: Question[] = [
       O("Pay a chemist bill up to ₹5,000"),
       O("Send old reports to a doctor when the doctor asks for them"),
       O("Tell you if a tablet has not been taken for three days"),
-      O("None of these — I would want to be asked every time", true),
+      O("None of these — I would want to be asked every time", true, true),
     ],
   },
   {
     id: "Q20", type: "single", randomize: true,
-    prompt: "Imagine you had one wish, and one of these jobs was taken off your family completely — done from beginning to end, correctly, every time, without anyone having to check on it. Which one would you hand over?",
+    prompt: "If one of these jobs could be taken off your family completely — done correctly every time, with nobody checking — which one would you hand over?",
     options: [
-      O("Keeping every report of every family member in order and ready when a doctor asks"),
-      O("Getting appointments — finding the slot, booking it, and confirming it is real"),
+      O("Keeping every report in order and ready when a doctor asks"),
+      O("Getting appointments — finding a slot, booking it, confirming it is real"),
       O("Making sure the monthly medicines never run out"),
-      O("Reminding the older people and getting them to actually go for check-ups"),
-      O("Handling the money — bills, chemist payments and insurance claims"),
-      O("Telling the doctor the full history, so nobody has to repeat it again"),
+      O("Getting the older people to actually go for check-ups"),
+      O("Handling the money — bills, chemist payments, insurance claims"),
+      O("Telling the doctor the full history, so nobody has to repeat it"),
       O("I would not hand over any of these", true),
     ],
   },
   {
     id: "Q21", type: "multi", randomize: true,
-    prompt: "Same wish, but this time it works directly with the oldest person in your family, without going through you. Which of these would you be willing to let it do with them?",
+    prompt: "Now think of that same automatic service working directly with the oldest person in your family, without going through you. What would you let it do with them?",
     help: "Select all that apply.",
     options: [
       O("Phone them in their own language and remind them about a tablet"),
-      O("Read their report out to them when they ask for it"),
+      O("Read their report out to them when they ask"),
       O("Book their appointment after checking with them, not with you"),
-      O("Let them order their own medicine by just speaking to it"),
+      O("Let them order their own medicine by speaking to it"),
       O("Let them pay a chemist up to ₹2,000 through it"),
       O("Answer their health questions when they cannot reach you"),
-      O("Nothing — anything to do with their health should come through me first", true),
+      O("Nothing — anything about their health should come through me first", true, true),
     ],
   },
   {
     id: "Q22", type: "single", randomize: true,
-    prompt: "If one thing about all of this could be different, what would you pick?",
+    prompt: "What is the most annoying part of all this today?",
     options: [
-      O("All the reports in one place, found in a few seconds"),
-      O("Appointment times that are actually available when shown"),
-      O("Medicine that arrives without anyone chasing it"),
-      O("Not being the only person who knows everything"),
-      O("The older people agreeing without being asked ten times"),
-      O("Not having to tell the same story to every new person"),
-      O("Being able to sort it out from another city"),
+      O("Hunting for reports"),
+      O("Getting an appointment"),
+      O("Chasing medicines"),
+      O("Being the only one who knows everything"),
+      O("Getting the older people to agree"),
+      O("Repeating the same story to everyone"),
+      O("Doing it all from another city"),
     ],
   },
 

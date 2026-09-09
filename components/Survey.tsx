@@ -157,8 +157,20 @@ export default function Survey() {
   // ---- form ----
   const qs = screenQuestions;
   const isLast = stepIndex >= SCREENS.length - 1;
-  const hideProgress = qs.some((q) => q.noProgress);
   const onAttn = stepIndex === ATTN_INDEX;
+
+  // Progress label shown on EVERY screen (spec B.5/B.6: never hide the indicator).
+  const screenLabel = (() => {
+    const ids = SCREENS[stepIndex] ?? [];
+    if (ids.length > 1) return "About you";
+    const id = ids[0] ?? "";
+    const m = /^Q(\d+)$/.exec(id);
+    if (m) return `Question ${m[1]} of 22`;
+    if (id === "attn") return "Attention check";
+    if (id === "worst_text") return "Optional note";
+    if (id === "followup") return "One last question";
+    return "";
+  })();
   const sectionValid = qs.every((q) => isAnswered(q, answers));
 
   const goNext = async () => {
@@ -215,12 +227,13 @@ export default function Survey() {
 
   return (
     <div>
-      {!hideProgress && <Progress step={stepIndex + 1} total={total} />}
+      <Progress step={stepIndex + 1} total={total} label={screenLabel} />
       {qs.map((q) => (
         <QuestionView
           key={q.id}
           q={q}
           value={answers[q.id]}
+          answers={answers}
           respondentId={respondentId}
           showError={showErrors && !isAnswered(q, answers)}
           onChange={onChange}
