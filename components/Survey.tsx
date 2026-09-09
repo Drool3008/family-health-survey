@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Answers, Question, QUESTIONS, QBYID, ALL_QIDS, CONSENT_TEXT } from "@/lib/schema";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n";
+import { Answers, Question, QUESTIONS, QBYID, ALL_QIDS } from "@/lib/schema";
 import { normalizeCode } from "@/lib/codes";
 import QuestionView from "./QuestionView";
 import Progress from "./Progress";
+import LanguageSwitcher from "./LanguageSwitcher";
 
 type Phase = "consent" | "code" | "form" | "declined" | "done";
 const LS_KEY = "fhs_state_v2";
 
 interface Timeline { qid: string; atMs: number; pos?: number | number[]; }
 
-// One screen per question, except the three demographics share the first screen.
 const DEMO = ["age", "city", "gender", "relation"];
 const SCREENS: string[][] = [DEMO, ...ALL_QIDS.filter((id) => !DEMO.includes(id)).map((id) => [id])];
 const ATTN_INDEX = SCREENS.findIndex((s) => s.includes("attn"));
@@ -24,6 +26,7 @@ function isAnswered(q: Question, answers: Answers): boolean {
 }
 
 export default function Survey() {
+  const { t, i18n } = useTranslation();
   const [mounted, setMounted] = useState(false);
   const [phase, setPhase] = useState<Phase>("consent");
   const [consentChoice, setConsentChoice] = useState<"agree" | "decline" | "">("");
@@ -35,7 +38,7 @@ export default function Survey() {
   const [answers, setAnswers] = useState<Answers>({});
   const [timeline, setTimeline] = useState<Timeline[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
-  const [floor, setFloor] = useState(0); // lowest step you can go back to (attention checkpoint)
+  const [floor, setFloor] = useState(0);
   const [showErrors, setShowErrors] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -44,6 +47,8 @@ export default function Survey() {
 
   useEffect(() => {
     try {
+      const savedLng = localStorage.getItem("fhs_lng");
+      if (savedLng && savedLng !== i18n.language) i18n.changeLanguage(savedLng);
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
         const s = JSON.parse(raw);
@@ -66,7 +71,7 @@ export default function Survey() {
       setStartedAt(Date.now());
     }
     setMounted(true);
-  }, []);
+  }, [i18n]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -76,7 +81,7 @@ export default function Survey() {
 
   const onChange = (qid: string, value: any, pos?: number | number[]) => {
     setAnswers((a) => ({ ...a, [qid]: value }));
-    setTimeline((t) => [...t.filter((e) => e.qid !== qid), { qid, atMs: Date.now() - startedAt, pos }]);
+    setTimeline((tl) => [...tl.filter((e) => e.qid !== qid), { qid, atMs: Date.now() - startedAt, pos }]);
   };
 
   const screenQuestions = useMemo(
@@ -84,27 +89,34 @@ export default function Survey() {
     [stepIndex]
   );
 
-  if (!mounted) return <div className="center spinner">Loading…</div>;
+  const shell = (body: ReactNode) => (
+    <div>
+      <LanguageSwitcher />
+      {body}
+    </div>
+  );
+
+  if (!mounted) return shell(<div className="center spinner">{t("ui.loading")}</div>);
 
   if (phase === "consent") {
-    return (
+    return shell(
       <div className="card">
-        <h1>Managing the family&apos;s health</h1>
-        <p className="lead">A short survey, about 7–9 minutes. Your answers are confidential.</p>
-        <p className="consent-quote">{CONSENT_TEXT}</p>
+        <h1>{t("consent.title")}</h1>
+        <p className="lead">{t("consent.lead")}</p>
+        <p className="consent-quote">{t("consent.text")}</p>
         <label className={"opt" + (consentChoice === "agree" ? " sel" : "")}>
           <input type="radio" name="consent" checked={consentChoice === "agree"} onChange={() => setConsentChoice("agree")} />
-          <span>I agree</span>
+          <span>{t("consent.agree")}</span>
         </label>
         <label className={"opt" + (consentChoice === "decline" ? " sel" : "")}>
           <input type="radio" name="consent" checked={consentChoice === "decline"} onChange={() => setConsentChoice("decline")} />
-          <span>I do not agree</span>
+          <span>{t("consent.decline")}</span>
         </label>
         <div className="nav">
           <span />
           <button className="primary" disabled={!consentChoice}
             onClick={() => setPhase(consentChoice === "agree" ? "code" : "declined")}>
-            Begin
+            {t("consent.begin")}
           </button>
         </div>
       </div>
@@ -114,42 +126,42 @@ export default function Survey() {
   if (phase === "code") {
     const submitCode = () => {
       const c = normalizeCode(codeInput);
-      if (!c) { setCodeError("That code isn't recognised. Please check the code you were given."); return; }
+      if (!c) { setCodeError(t("code.error")); return; }
       setFamilyCode(c);
       setCodeError("");
       setPhase("form");
     };
-    return (
+    return shell(
       <div className="card">
-        <h2>Do you have a code?</h2>
-        <p className="help">Enter the code you were given. It links your answers to the rest of your family. If you don&apos;t have one, please contact the person who sent you this.</p>
+        <h2>{t("code.heading")}</h2>
+        <p className="help">{t("code.help")}</p>
         <input type="text" value={codeInput}
           onChange={(e) => { setCodeInput(e.target.value); setCodeError(""); }}
           onKeyDown={(e) => { if (e.key === "Enter") submitCode(); }}
-          placeholder="e.g. MANGO47" autoCapitalize="characters" aria-label="Family code" />
+          placeholder={t("code.placeholder")} autoCapitalize="characters" aria-label="Family code" />
         {codeError && <p className="err">{codeError}</p>}
         <div className="nav">
-          <button onClick={() => setPhase("consent")}>Back</button>
-          <button className="primary" disabled={!codeInput.trim()} onClick={submitCode}>Continue</button>
+          <button onClick={() => setPhase("consent")}>{t("ui.back")}</button>
+          <button className="primary" disabled={!codeInput.trim()} onClick={submitCode}>{t("ui.continue")}</button>
         </div>
       </div>
     );
   }
 
   if (phase === "declined") {
-    return (
+    return shell(
       <div className="card center">
-        <h2>Thank you</h2>
-        <p className="help">No answers have been recorded. You can close this page.</p>
+        <h2>{t("declined.title")}</h2>
+        <p className="help">{t("declined.body")}</p>
       </div>
     );
   }
 
   if (phase === "done") {
-    return (
+    return shell(
       <div className="card center">
-        <h2>Thank you</h2>
-        <p className="help">Your responses have been recorded.</p>
+        <h2>{t("done.title")}</h2>
+        <p className="help">{t("done.body")}</p>
       </div>
     );
   }
@@ -170,7 +182,6 @@ export default function Survey() {
       return;
     }
     setShowErrors(false);
-    // passing the attention check locks back-navigation across it
     if (onAttn) setFloor(ATTN_INDEX + 1);
     if (!isLast) { setStepIndex((i) => i + 1); window.scrollTo(0, 0); return; }
     await submit();
@@ -195,6 +206,7 @@ export default function Survey() {
           consent: true,
           respondentId,
           familyCode,
+          locale: i18n.language,
           attentionPass: answers["attn"] === QBYID["attn"].attention,
           startedAt: new Date(startedAt).toISOString(),
           submittedAt: new Date().toISOString(),
@@ -203,17 +215,17 @@ export default function Survey() {
           timeline,
         }),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "Submit failed");
+      if (!res.ok) throw new Error("submit failed");
       localStorage.removeItem(LS_KEY);
       setPhase("done");
-    } catch (e: any) {
-      setSubmitError(e?.message || "Could not submit. Please try again.");
+    } catch {
+      setSubmitError(t("ui.submit_error"));
     } finally {
       setSubmitting(false);
     }
   };
 
-  return (
+  return shell(
     <div>
       {!hideProgress && <Progress step={stepIndex + 1} total={total} />}
       {qs.map((q) => (
@@ -228,9 +240,9 @@ export default function Survey() {
       ))}
       {submitError && <p className="err">{submitError}</p>}
       <div className="nav">
-        {backDisabled ? <span /> : <button onClick={goBack}>Back</button>}
+        {backDisabled ? <span /> : <button onClick={goBack}>{t("ui.back")}</button>}
         <button className="primary" onClick={goNext} disabled={submitting}>
-          {submitting ? "Submitting…" : isLast ? "Submit" : "Next"}
+          {submitting ? t("ui.submitting") : isLast ? t("ui.submit") : t("ui.next")}
         </button>
       </div>
     </div>

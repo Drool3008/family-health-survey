@@ -1,7 +1,9 @@
 // Runnable check for the 22-question schema + randomization pins.
 // Run: node --experimental-strip-types scripts/selfcheck.ts
+import { readFileSync } from "node:fs";
 import { QUESTIONS, QBYID } from "../lib/schema.ts";
 import { orderedOptions } from "../lib/randomize.ts";
+import { GLOSSARY } from "../lib/glossary.ts";
 
 let failed = 0;
 const assert = (cond: boolean, msg: string) => {
@@ -58,6 +60,40 @@ assert(!QBYID["Q1"].optional && !QBYID["followup"].optional, "Q1 and follow-up a
     assert(ok, `${id} keeps pinned option(s) last (rid=${rid})`);
   }
 });
+
+// ---- i18n coverage: every schema string has an English key, brands tokenized ----
+const en: Record<string, string> = JSON.parse(readFileSync("locales/en/survey.json", "utf8"));
+let missing = 0;
+for (const q of QUESTIONS) {
+  if (!(`q.${q.id}.prompt` in en)) { console.error("MISSING key q." + q.id + ".prompt"); missing++; }
+  if (q.help && !(`q.${q.id}.help` in en)) { console.error("MISSING help " + q.id); missing++; }
+  if (q.id === "city") continue;
+  for (const o of q.options ?? []) {
+    if (!(`q.${q.id}.opt.${o.id}` in en)) { console.error(`MISSING opt ${q.id}/${o.id}`); missing++; }
+  }
+}
+assert(missing === 0, `every schema prompt/help/option has an English key (missing=${missing})`);
+
+const UI_KEYS = [
+  "ui.loading", "ui.back", "ui.continue", "ui.next", "ui.submit", "ui.submitting",
+  "ui.select", "ui.optional", "ui.required_error", "ui.progress", "ui.submit_error",
+  "consent.title", "consent.lead", "consent.text", "consent.agree", "consent.decline", "consent.begin",
+  "code.heading", "code.help", "code.placeholder", "code.error",
+  "done.title", "done.body", "declined.title", "declined.body",
+];
+UI_KEYS.forEach((k) => assert(k in en, `UI key present: ${k}`));
+
+// Brands are protected tokens, not raw text, and every token has a glossary value.
+const brandStr = en["q.Q18.opt.A medicine app — 1mg, PharmEasy, Apollo, Netmeds, Zeno"] ?? "";
+assert(brandStr.includes("{{b_1mg}}") && brandStr.includes("{{b_pharmeasy}}") && !brandStr.includes("PharmEasy"),
+  "Q18 brands are tokenized ({{b_*}}), not raw");
+assert((en["q.Q6.opt.Open a folder in email or Google Drive"] ?? "").includes("{{b_googledrive}}"),
+  "Google Drive tokenized in Q6");
+let badTok = 0;
+for (const v of Object.values(en)) {
+  for (const m of v.matchAll(/{{(b_[a-z0-9]+)}}/g)) if (!(m[1] in GLOSSARY)) { console.error("no glossary value for", m[1]); badTok++; }
+}
+assert(badTok === 0, "every {{b_*}} token has a glossary value");
 
 console.log(failed === 0 ? "\nALL PASS" : `\n${failed} FAILED`);
 if (failed) process.exit(1);

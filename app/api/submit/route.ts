@@ -3,19 +3,16 @@ import { QBYID, ALL_QIDS, Question } from "@/lib/schema";
 
 export const runtime = "nodejs";
 
-const META = ["submittedAt", "familyCode", "attentionPass", "respondentId", "startedAt", "totalMs"];
+const META = ["submittedAt", "familyCode", "locale", "attentionPass", "respondentId", "startedAt", "totalMs"];
 const HEADER = [...META, ...ALL_QIDS, "_timeline"];
 
-const labelOf = (q: Question, id: string) =>
-  q.options?.find((o) => o.id === id)?.label ?? id;
-
+// Store the stable, language-neutral option id (English canonical) — NEVER the translated
+// display label. Two respondents picking the same option in different languages produce
+// the identical stored value. Display language is captured separately in the `locale` column.
 function formatAnswer(q: Question, value: any): string {
   if (value == null || value === "") return "";
-  if (q.type === "multi") {
-    return (Array.isArray(value) ? value : []).map((id) => labelOf(q, id)).join(" | ");
-  }
-  if (q.type === "single" || q.type === "dropdown") return labelOf(q, value);
-  return String(value); // text
+  if (q.type === "multi") return (Array.isArray(value) ? value : []).join(" | ");
+  return String(value); // single / dropdown / text — the option id or raw text
 }
 
 function toRow(body: any): string[] {
@@ -23,6 +20,7 @@ function toRow(body: any): string[] {
   const meta = [
     body.submittedAt ?? new Date().toISOString(),
     body.familyCode ?? "",
+    body.locale ?? "",
     body.attentionPass ? "PASS" : "FAIL",
     body.respondentId ?? "",
     body.startedAt ?? "",

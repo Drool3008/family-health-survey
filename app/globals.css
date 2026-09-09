@@ -18,7 +18,9 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Latin first; Indic Noto faces cover Devanagari / Telugu / Bengali-Assamese glyphs. */
+  font-family: var(--font-latin), var(--font-deva), var(--font-telugu), var(--font-bengali),
+    system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 18px;
   line-height: 1.5;
 }
@@ -115,3 +117,23 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .center { text-align: center; padding: 40px 0; }
 .spinner { color: var(--muted); }
+
+/* Language switcher */
+.langbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  margin: 0 0 12px;
+}
+.langbtn {
+  font-size: 15px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  min-height: 36px;
+}
+.langbtn.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }

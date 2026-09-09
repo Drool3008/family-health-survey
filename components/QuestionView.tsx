@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslation } from "react-i18next";
 import { Question } from "@/lib/schema";
 import { orderedOptions } from "@/lib/randomize";
 
@@ -12,22 +13,26 @@ interface Props {
 }
 
 export default function QuestionView({ q, value, respondentId, showError, onChange }: Props) {
+  const { t } = useTranslation();
   const required = !q.optional;
+  // City option labels are proper nouns — rendered verbatim, never translated.
+  const optLabel = (oid: string, fallback: string) =>
+    q.id === "city" ? fallback : t(`q.${q.id}.opt.${oid}`, { defaultValue: fallback });
 
   return (
     <div className="card" id={`q-${q.id}`}>
       <p className="qtitle">
-        {q.prompt}
+        {t(`q.${q.id}.prompt`, { defaultValue: q.prompt })}
         {required && <span className="req" aria-hidden>*</span>}
       </p>
-      {q.help && <p className="help">{q.help}</p>}
+      {q.help && <p className="help">{t(`q.${q.id}.help`, { defaultValue: q.help })}</p>}
 
       {q.type === "single" && (
-        <SingleView q={q} value={value} respondentId={respondentId} onChange={onChange} />
+        <SingleView q={q} value={value} respondentId={respondentId} onChange={onChange} optLabel={optLabel} />
       )}
 
       {q.type === "multi" && (
-        <MultiView q={q} value={value} respondentId={respondentId} onChange={onChange} />
+        <MultiView q={q} value={value} respondentId={respondentId} onChange={onChange} optLabel={optLabel} />
       )}
 
       {q.type === "dropdown" && (
@@ -38,9 +43,9 @@ export default function QuestionView({ q, value, respondentId, showError, onChan
             onChange(q.id, e.target.value || undefined, idx);
           }}
         >
-          <option value="">Select…</option>
+          <option value="">{t("ui.select")}</option>
           {(q.options ?? []).map((o) => (
-            <option key={o.id} value={o.id}>{o.label}</option>
+            <option key={o.id} value={o.id}>{optLabel(o.id, o.label)}</option>
           ))}
         </select>
       )}
@@ -49,30 +54,30 @@ export default function QuestionView({ q, value, respondentId, showError, onChan
         <textarea
           value={value ?? ""}
           onChange={(e) => onChange(q.id, e.target.value)}
-          placeholder={q.optional ? "Optional" : ""}
+          placeholder={q.optional ? t("ui.optional") : ""}
         />
       )}
 
-      {showError && <p className="err">Please answer this before continuing.</p>}
+      {showError && <p className="err">{t("ui.required_error")}</p>}
     </div>
   );
 }
 
-function SingleView({ q, value, respondentId, onChange }: any) {
+function SingleView({ q, value, respondentId, onChange, optLabel }: any) {
   const opts = orderedOptions(q, respondentId);
   return (
     <div role="radiogroup">
       {opts.map((o: any, i: number) => (
         <label key={o.id} className={"opt" + (value === o.id ? " sel" : "")}>
           <input type="radio" name={q.id} checked={value === o.id} onChange={() => onChange(q.id, o.id, i)} />
-          <span>{o.label}</span>
+          <span>{optLabel(o.id, o.label)}</span>
         </label>
       ))}
     </div>
   );
 }
 
-function MultiView({ q, value, respondentId, onChange }: any) {
+function MultiView({ q, value, respondentId, onChange, optLabel }: any) {
   const opts = orderedOptions(q, respondentId);
   const arr: string[] = Array.isArray(value) ? value : [];
   const toggle = (id: string, i: number) => {
@@ -84,7 +89,7 @@ function MultiView({ q, value, respondentId, onChange }: any) {
       {opts.map((o: any, i: number) => (
         <label key={o.id} className={"opt" + (arr.includes(o.id) ? " sel" : "")}>
           <input type="checkbox" checked={arr.includes(o.id)} onChange={() => toggle(o.id, i)} />
-          <span>{o.label}</span>
+          <span>{optLabel(o.id, o.label)}</span>
         </label>
       ))}
     </div>
