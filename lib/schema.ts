@@ -32,12 +32,17 @@ function coordinator(a: Answers): { subj: string; obj: string } {
     case "I do": return { subj: "you", obj: "you" };
     case "My mother": return { subj: "your mother", obj: "her" };
     case "My father": return { subj: "your father", obj: "him" };
-    case "My son or daughter": return { subj: "your son or daughter", obj: "them" };
-    case "My brother or sister": return { subj: "your brother or sister", obj: "them" };
-    case "My husband or wife": return { subj: "your husband or wife", obj: "them" };
+    case "My son": return { subj: "your son", obj: "him" };
+    case "My daughter": return { subj: "your daughter", obj: "her" };
+    case "My brother": return { subj: "your brother", obj: "him" };
+    case "My sister": return { subj: "your sister", obj: "her" };
+    case "My husband": return { subj: "your husband", obj: "him" };
+    case "My wife": return { subj: "your wife", obj: "her" };
     default: return { subj: "the person who usually arranges things", obj: "them" };
   }
 }
+// Same phrase, capitalised for use at the start of a sentence (Q2).
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const INDIAN_CITIES = [
   "Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Ahmedabad", "Chennai", "Kolkata",
@@ -78,14 +83,16 @@ export const QUESTIONS: Question[] = [
     id: "Q1", type: "single",
     prompt: "In your family, who arranges doctor visits, medicines and reports for the others?",
     options: [
-      O("I do"), O("My mother"), O("My father"), O("My son or daughter"),
-      O("My brother or sister"), O("My husband or wife"),
+      O("I do"), O("My mother"), O("My father"),
+      O("My son"), O("My daughter"), O("My brother"), O("My sister"),
+      O("My husband"), O("My wife"),
       O("Nobody — each person does their own", true),
     ],
   },
   {
     id: "Q2", type: "single",
     prompt: "That person, and the oldest person in the family who needs care — where do they live?",
+    promptFor: (a) => `${cap(coordinator(a).subj)}, and the oldest person in the family who needs care — where do they live?`,
     options: [
       O("In the same house"), O("Same city, different house"), O("Different city, same state"),
       O("Different state"), O("One of them is outside India"),

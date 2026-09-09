@@ -39,12 +39,20 @@ assert(QUESTIONS.every((q) => !(q as any).noProgress), "no question hides the pr
 ["Q11", "Q18", "Q19", "Q21"].forEach((id) =>
   assert(!!QBYID[id].options?.some((o) => o.exclusive), `${id} has an exclusive clears-others option`));
 
-// Q8/Q9 reword from the Q1 answer, and differ by that answer.
-["Q8", "Q9"].forEach((id) => assert(typeof QBYID[id].promptFor === "function", `${id} has a dynamic promptFor`));
+// Q2/Q8/Q9 reword from the Q1 answer, and differ by that answer.
+["Q2", "Q8", "Q9"].forEach((id) => assert(typeof QBYID[id].promptFor === "function", `${id} has a dynamic promptFor`));
 const p8 = QBYID["Q8"].promptFor!;
 assert(p8({ Q1: "My mother" }).includes("your mother") && p8({ Q1: "I do" }).includes("you"),
   "Q8 prompt reflects the Q1 answer");
 assert(p8({ Q1: "My mother" }) !== p8({ Q1: "My father" }), "Q8 prompt differs by Q1 selection");
+const p2 = QBYID["Q2"].promptFor!;
+assert(p2({ Q1: "My son" }).startsWith("Your son,"), "Q2 prompt starts with the capitalised Q1 subject");
+assert(p2({ Q1: "My daughter" }) !== p2({ Q1: "My son" }), "Q2 prompt differs by Q1 selection");
+
+// Q1 split options present (no combined son/daughter etc.).
+["My son", "My daughter", "My brother", "My sister", "My husband", "My wife"].forEach((o) =>
+  assert(!!QBYID["Q1"].options?.some((x) => x.id === o), `Q1 offers '${o}'`));
+assert(!QBYID["Q1"].options?.some((x) => x.id.includes(" or ")), "Q1 has no combined 'x or y' options");
 
 // Relationship question captured in About you.
 const rel = QBYID["relation"];
