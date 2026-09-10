@@ -123,6 +123,7 @@ export default function Survey() {
       <div className="card">
         <h2>Do you have a code?</h2>
         <p className="help">Enter the code you were given. It links your answers to the rest of your family. If you don&apos;t have one, please contact the person who sent you this.</p>
+        <p className="help">Evaluators: use code <strong>THEKEN69</strong> to view and access the form.</p>
         <input type="text" value={codeInput}
           onChange={(e) => { setCodeInput(e.target.value); setCodeError(""); }}
           onKeyDown={(e) => { if (e.key === "Enter") submitCode(); }}

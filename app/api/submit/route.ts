@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { QBYID, ALL_QIDS, Question } from "@/lib/schema";
+import { isEvaluatorCode } from "@/lib/codes";
 
 export const runtime = "nodejs";
 
-const META = ["submittedAt", "familyCode", "attentionPass", "respondentId", "startedAt", "totalMs"];
+const META = ["submittedAt", "familyCode", "isEvaluator", "attentionPass", "respondentId", "startedAt", "totalMs"];
 const HEADER = [...META, ...ALL_QIDS, "_timeline"];
 
 const labelOf = (q: Question, id: string) =>
@@ -23,6 +24,7 @@ function toRow(body: any): string[] {
   const meta = [
     body.submittedAt ?? new Date().toISOString(),
     body.familyCode ?? "",
+    isEvaluatorCode(body.familyCode ?? "") ? "EVAL" : "",
     body.attentionPass ? "PASS" : "FAIL",
     body.respondentId ?? "",
     body.startedAt ?? "",

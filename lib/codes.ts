@@ -6,7 +6,16 @@ export const FAMILY_CODES = [
   "MANGO47", "TIGER22", "RIVER83", "LOTUS61",
   "PEARL39", "CEDAR54", "AMBER70", "OLIVE28",
   "CORAL95", "MAPLE16", "IVORY43", "SLATE88",
+  "THEKEN69",
 ];
+
+// Codes used by evaluators, not real families. Kept out of the family dataset
+// via the isEvaluator column on each response.
+export const EVALUATOR_CODES = ["THEKEN69"];
+
+export function isEvaluatorCode(code: string): boolean {
+  return EVALUATOR_CODES.includes((code ?? "").trim().toUpperCase());
+}
 
 // Returns the canonical code if valid, else null.
 export function normalizeCode(input: string): string | null {
